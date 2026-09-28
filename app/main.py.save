@@ -1,0 +1,452 @@
+                .grid {
+                    grid-template-columns: 1fr;
+                }
+            }
+        </style>
+    </head>
+
+    <body>
+
+    <div class="container">
+
+        <h1>AI Job Application Automation</h1>
+
+        <p class="subtitle">
+            Analyze jobs, match your resume, generate a customized resume
+            and create an HR message.
+        </p>
+
+
+        <!-- JOB DESCRIPTION -->
+
+        <div class="section">
+
+            <label>1. Job Description</label>
+
+            <textarea
+                id="jobDescription"
+                placeholder="Paste the complete job description here..."
+            ></textarea>
+
+            <button onclick="analyzeJob()">
+                Analyze Job
+            </button>
+
+            <div id="jobResult" class="result"></div>
+
+        </div>
+
+
+        <!-- RESUME -->
+
+        <div class="section">
+
+            <label>2. Upload Resume</label>
+
+            <input
+                type="file"
+                id="resumeFile"
+                accept=".pdf"
+            >
+
+            <button onclick="uploadResume()">
+                Upload & Analyze Resume
+            </button>
+
+            <div id="resumeResult" class="result"></div>
+
+        </div>
+
+
+        <!-- MATCH -->
+
+        <div class="section">
+
+            <button onclick="matchJob()">
+                Match Job & Resume
+            </button>
+
+            <div id="matchResult" class="result"></div>
+
+        </div>
+
+
+        <!-- CANDIDATE DETAILS -->
+
+        <div class="section">
+
+            <h2>Candidate Details</h2>
+
+            <div class="grid">
+
+                <div>
+                    <label>Name</label>
+                    <input
+                        type="text"
+                        id="candidateName"
+                        value="Sanniboina Kavyasri"
+                    >
+                </div>
+
+                <div>
+                    <label>Email</label>
+                    <input
+                        type="email"
+                        id="candidateEmail"
+                        value="kavyasrisanniboina@gmail.com"
+                    >
+                </div>
+
+                <div>
+                    <label>Phone</label>
+                    <input
+                        type="text"
+                        id="candidatePhone"
+                        placeholder="Enter phone number"
+                    >
+                </div>
+
+                <div>
+                    <label>GitHub</label>
+                    <input
+                        type="text"
+                        id="candidateGithub"
+                        value="github.com/kavyasri59"
+                    >
+                </div>
+
+                <div>
+                    <label>LinkedIn</label>
+                    <input
+                        type="text"
+                        id="candidateLinkedin"
+                        placeholder="LinkedIn profile"
+                    >
+                </div>
+
+                <div>
+                    <label>Company Name</label>
+                    <input
+                        type="text"
+                        id="companyName"
+                        placeholder="Company name"
+                    >
+                </div>
+
+            </div>
+
+        </div>
+
+
+        <!-- GENERATE RESUME -->
+
+        <div class="section">
+
+            <button onclick="generateResume()">
+                Generate Customized Resume
+            </button>
+
+            <div id="resumeGenerateResult" class="result"></div>
+
+        </div>
+
+
+        <!-- HR MESSAGE -->
+
+        <div class="section">
+
+            <label>HR Name</label>
+
+            <input
+                type="text"
+                id="hrName"
+                value="Hiring Manager"
+            >
+
+            <button onclick="generateMessage()">
+                Generate HR Message
+            </button>
+
+            <div id="messageResult" class="result"></div>
+
+        </div>
+
+    </div>
+
+
+    <script>
+
+        let uploadedResumeFilename = "";
+        let resumeText = "";
+        let matchData = {};
+
+
+        async function analyzeJob() {
+
+            const jobDescription =
+                document.getElementById("jobDescription").value;
+
+            if (!jobDescription.trim()) {
+                alert("Please paste the job description.");
+                return;
+            }
+
+            const response = await fetch("/analyze-job", {
+                method: "POST",
+
+                headers: {
+                    "Content-Type": "application/json"
+                },
+
+                body: JSON.stringify({
+                    job_description: jobDescription
+                })
+            });
+
+            const data = await response.json();
+
+            document.getElementById("jobResult").innerHTML =
+                "<b>Job Title:</b> " + (data.job_title || "Not detected") +
+                "<br><br>" +
+                "<b>Experience:</b> " + (data.experience || "Not detected") +
+                "<br><br>" +
+                "<b>Location:</b> " + (data.location || "Not detected") +
+                "<br><br>" +
+                "<b>Skills:</b> " +
+                (data.skills || []).join(", ");
+        }
+
+
+        async function uploadResume() {
+
+            const file =
+                document.getElementById("resumeFile").files[0];
+
+            if (!file) {
+                alert("Please select your PDF resume.");
+                return;
+            }
+
+            const formData = new FormData();
+
+            formData.append("file", file);
+
+            const response = await fetch("/upload-resume", {
+                method: "POST",
+                body: formData
+            });
+
+            const data = await response.json();
+
+            if (!response.ok) {
+                document.getElementById("resumeResult").innerHTML =
+                    "<span class='error'>" +
+                    (data.detail || "Resume upload failed") +
+                    "</span>";
+                return;
+            }
+
+            uploadedResumeFilename = data.filename;
+            resumeText = data.resume_text || "";
+
+            document.getElementById("resumeResult").innerHTML =
+                "<span class='success'>Resume uploaded successfully.</span>" +
+                "<br><br>" +
+                "<b>Detected Skills:</b> " +
+                data.skills.join(", ");
+        }
+
+
+        async function matchJob() {
+
+            const jobDescription =
+                document.getElementById("jobDescription").value;
+
+            if (!jobDescription.trim()) {
+                alert("Please enter the job description.");
+                return;
+            }
+
+            if (!uploadedResumeFilename) {
+                alert("Please upload your resume first.");
+                return;
+            }
+
+            const response = await fetch("/match-job", {
+                method: "POST",
+
+                headers: {
+                    "Content-Type": "application/json"
+                },
+
+                body: JSON.stringify({
+                    job_description: jobDescription,
+                    resume_filename: uploadedResumeFilename
+                })
+            });
+
+            const data = await response.json();
+
+            if (!response.ok) {
+                document.getElementById("matchResult").innerHTML =
+                    "<span class='error'>" +
+                    (data.detail || "Matching failed") +
+                    "</span>";
+                return;
+            }
+
+            matchData = data;
+
+            document.getElementById("matchResult").innerHTML =
+                "<b>Job Title:</b> " + data.job_title +
+                "<br><br>" +
+                "<b>Match Percentage:</b> " +
+                data.match_percentage + "%" +
+                "<br><br>" +
+                "<b>Matched Skills:</b> " +
+                data.matched_skills.join(", ") +
+                "<br><br>" +
+                "<b>Missing Skills:</b> " +
+                data.missing_skills.join(", ");
+        }
+
+
+        async function generateResume() {
+
+            if (!matchData.matched_skills) {
+                alert("Please match the job and resume first.");
+                return;
+            }
+
+            const requestData = {
+
+                name:
+                    document.getElementById("candidateName").value,
+
+                email:
+                    document.getElementById("candidateEmail").value,
+
+                phone:
+                    document.getElementById("candidatePhone").value,
+
+                github:
+                    document.getElementById("candidateGithub").value,
+
+                linkedin:
+                    document.getElementById("candidateLinkedin").value,
+
+                job_title:
+                    matchData.job_title || "DevOps Engineer",
+
+                matched_skills:
+                    matchData.matched_skills,
+
+                resume_text:
+                    resumeText
+            };
+
+
+            const response = await fetch("/generate-resume", {
+
+                method: "POST",
+
+                headers: {
+                    "Content-Type": "application/json"
+                },
+
+                body: JSON.stringify(requestData)
+
+            });
+
+
+            const data = await response.json();
+
+
+            document.getElementById("resumeGenerateResult").innerHTML =
+                "<span class='success'>" +
+                data.message +
+                "</span>" +
+                "<br><br>" +
+                "Generated file: " +
+                data.resume_path;
+        }
+
+
+        async function generateMessage() {
+
+    if (!matchData.matched_skills) {
+        alert("Please match the job and resume first.");
+        return;
+    }
+
+    const requestData = {
+
+        candidate_name:
+            document.getElementById("candidateName").value,
+
+        job_title:
+            matchData.job_title || "DevOps Engineer",
+
+        company_name:
+            document.getElementById("companyName").value,
+
+        matched_skills:
+            matchData.matched_skills,
+
+        hr_name:
+            document.getElementById("hrName").value
+
+    };
+
+    if (!requestData.company_name) {
+        alert("Please enter the company name.");
+        return;
+    }
+
+    const response = await fetch("/generate-message", {
+
+        method: "POST",
+
+        headers: {
+            "Content-Type": "application/json"
+        },
+
+        body: JSON.stringify(requestData)
+
+    });
+
+    const result = await response.json();
+
+    if (!response.ok) {
+        alert(result.detail || "Failed to generate HR message.");
+        return;
+    }
+
+    // Automatically fill Email Subject
+    document.getElementById("email_subject").value =
+        result.subject || "";
+
+    // Automatically fill Email Message
+    document.getElementById("email_body").value =
+        result.message || "";
+
+    alert("HR message generated successfully!");
+}
+
+    </script>
+<hr>
+
+<h2>📧 Send Job Application</h2>
+
+<label>HR Email:</label><br>
+<input
+    type="email"
+    id="recipient_email"
+    placeholder="hr@company.com"
+    style="width:400px;padding:8px;"
+>
+<br><br>
+
+<label>Email Subject:</label><br>
+<input
+  

@@ -1,0 +1,9 @@
+venv/
+__pycache__/
+*.pyc
+.env
+*.pem
+resumes/*
+generated_resumes/*
+generated_messages/*
+logs/*

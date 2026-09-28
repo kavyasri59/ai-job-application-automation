@@ -1,0 +1,264 @@
+from fastapi.responses import HTMLResponse
+from app.services.message_generator import generate_hr_message
+from app.services.resume_generator import generate_custom_resume
+from fastapi import FastAPI, UploadFile, File, HTTPException
+from pydantic import BaseModel
+import os
+
+from app.config import APP_NAME
+from app.services.jd_parser import analyze_job_description
+from app.services.resume_parser import analyze_resume
+from app.services.job_matcher import calculate_match
+
+
+app = FastAPI(
+    title=APP_NAME,
+    description="AI-powered job application automation system",
+    version="1.0.0"
+)
+
+
+class JobDescriptionRequest(BaseModel):
+    job_description: str
+
+
+class MatchJobRequest(BaseModel):
+    job_description: str
+    resume_filename: str
+
+
+@app.get("/", response_class=HTMLResponse)
+def root():
+    return """
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <title>AI Job Application Automation</title>
+        <style>
+            body {
+                font-family: Arial, sans-serif;
+                background: #f4f6f8;
+                margin: 0;
+                padding: 0;
+            }
+
+            .container {
+                width: 80%;
+                max-width: 900px;
+                margin: 80px auto;
+                background: white;
+                padding: 40px;
+                border-radius: 12px;
+                box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+                text-align: center;
+            }
+
+            h1 {
+                color: #1f2937;
+            }
+
+            p {
+                color: #555;
+                font-size: 18px;
+            }
+
+            .status {
+                display: inline-block;
+                margin-top: 20px;
+                padding: 12px 25px;
+                background: #d1fae5;
+                color: #065f46;
+                border-radius: 8px;
+                font-weight: bold;
+            }
+
+            .features {
+                margin-top: 30px;
+                text-align: left;
+            }
+
+            .features li {
+                margin: 12px 0;
+                font-size: 16px;
+            }
+        </style>
+    </head>
+
+    <body>
+        <div class="container">
+
+            <h1>AI Job Application Automation</h1>
+
+            <p>
+                Automate your job application workflow using
+                Python, FastAPI and AI-powered processing.
+            </p>
+
+            <div class="status">
+                Application is Running
+            </div>
+
+            <div class="features">
+                <h2>Project Features</h2>
+
+                <ul>
+                    <li>Job Description Analysis</li>
+                    <li>Resume Parsing</li>
+                    <li>Job & Resume Skill Matching</li>
+                    <li>Customized Resume Generation</li>
+                    <li>HR Message Generation</li>
+                    <li>Email Application Automation</li>
+                </ul>
+            </div>
+
+        </div>
+    </body>
+    </html>
+    """
+
+
+@app.get("/health")
+def health():
+    return {
+        "status": "healthy"
+    }
+
+
+@app.post("/analyze-job")
+def analyze_job(request: JobDescriptionRequest):
+
+    result = analyze_job_description(
+        request.job_description
+    )
+
+    return result
+
+
+@app.post("/upload-resume")
+async def upload_resume(file: UploadFile = File(...)):
+
+    if not file.filename.lower().endswith(".pdf"):
+        raise HTTPException(
+            status_code=400,
+            detail="Only PDF files are allowed"
+        )
+
+    os.makedirs("resumes", exist_ok=True)
+
+    file_path = os.path.join(
+        "resumes",
+        file.filename
+    )
+
+    contents = await file.read()
+
+    with open(file_path, "wb") as f:
+        f.write(contents)
+
+    result = analyze_resume(file_path)
+
+    return {
+    "filename": file.filename,
+    "skills": result["skills"],
+    "resume_text": result["text"],
+    "message": "Resume uploaded and analyzed successfully"
+}
+
+
+@app.post("/match-job")
+def match_job(request: MatchJobRequest):
+
+    resume_path = os.path.join(
+        "resumes",
+        request.resume_filename
+    )
+
+    if not os.path.exists(resume_path):
+        raise HTTPException(
+            status_code=404,
+            detail="Resume not found"
+        )
+
+    job_result = analyze_job_description(
+        request.job_description
+    )
+
+    resume_result = analyze_resume(
+        resume_path
+    )
+
+    match_result = calculate_match(
+        job_result["skills"],
+        resume_result["skills"]
+    )
+
+    return {
+        "job_title": job_result["job_title"],
+        "experience": job_result["experience"],
+        "location": job_result["location"],
+        "job_skills": job_result["skills"],
+        "resume_skills": resume_result["skills"],
+        "match_percentage": match_result["match_percentage"],
+        "matched_skills": match_result["matched_skills"],
+        "missing_skills": match_result["missing_skills"]
+    }
+
+
+@app.post("/generate-resume")
+def generate_resume(request: dict):
+
+    output_path = "generated_resumes/customized_resume.pdf"
+
+    matched_skills = request.get("matched_skills", [])
+
+    resume_text = request.get(
+        "resume_text",
+        ""
+    )
+
+    result = generate_custom_resume(
+        output_path=output_path,
+        name=request.get(
+            "name",
+            "Sanniboina Kavyasri"
+        ),
+        email=request.get(
+            "email",
+            ""
+        ),
+        phone=request.get(
+            "phone",
+            ""
+        ),
+        github=request.get(
+            "github",
+            "github.com/kavyasri59"
+        ),
+        linkedin=request.get(
+            "linkedin",
+            ""
+        ),
+        job_title=request.get(
+            "job_title",
+            "DevOps Engineer"
+        ),
+        matched_skills=matched_skills,
+        resume_text=resume_text
+    )
+
+    return {
+        "message": "Customized resume generated successfully",
+        "resume_path": result
+    }
+@app.post("/generate-message")
+def generate_message(request: dict):
+
+    result = generate_hr_message(
+        candidate_name=request["candidate_name"],
+        job_title=request["job_title"],
+        company_name=request["company_name"],
+        matched_skills=request["matched_skills"],
+        hr_name=request.get("hr_name", "Hiring Manager")
+    )
+
+    return result
